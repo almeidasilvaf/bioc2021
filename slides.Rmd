@@ -3,7 +3,7 @@ title: |
   cageminer: mining candidate genes by integrating GWAS and gene coexpression networks
 author: "Fabrício Almeida-Silva  @almeidasilvaf"
 institute: "UENF, Brazil"
-date: "August 2, 2021"
+date: "August 6, 2021"
 output:
   xaringan::moon_reader:
     lib_dir: libs
