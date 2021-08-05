@@ -359,15 +359,15 @@ slides > slide {
 */
 
 .title-slide {
-  background-image: url(https://github.com/almeidasilvaf/cageminer/blob/master/man/figures/logo.png?raw=true);
-  background-position: 90% 50%;
-  background-size: 45%;
+  background-image: url(https://github.com/almeidasilvaf/bioc2021/blob/master/figs/cageminer_logo.png?raw=true);
+  background-position: 95% 50%;
+  background-size: 25%;
   background-color: #E5E7E9;
   text-align: left;
   vertical-align: top;
   text-shadow: none;
   /*text-shadow: 0 0 5px #333;*/
-  padding-right: 600px;
+  padding-right: 300px;
 }
 
 /* H1 fonts  */

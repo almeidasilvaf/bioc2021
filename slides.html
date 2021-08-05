@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="" xml:lang="">
   <head>
-    <title>cageminer: an R/Bioconductor package to prioritize candidate genes by integrating GWAS and gene coexpression networks</title>
+    <title>cageminer: mining candidate genes by integrating GWAS and gene coexpression networks</title>
     <meta charset="utf-8" />
-    <meta name="author" content="Fabrício de Almeida Silva @almeidasilvaf" />
+    <meta name="author" content="Fabrício Almeida-Silva @almeidasilvaf" />
     <meta name="date" content="2021-08-02" />
     <script src="libs/header-attrs-2.9.5/header-attrs.js"></script>
     <link href="libs/remark-css-0.0.1/default.css" rel="stylesheet" />
@@ -22,8 +22,8 @@
     <textarea id="source">
 class: center, middle, inverse, title-slide
 
-# <p>cageminer: an R/Bioconductor package to prioritize candidate genes by integrating GWAS and gene coexpression networks</p>
-### Fabrício de Almeida Silva <span class="citation">@almeidasilvaf</span>
+# <p>cageminer: mining candidate genes by integrating GWAS and gene coexpression networks</p>
+### Fabrício Almeida-Silva <span class="citation">@almeidasilvaf</span>
 ### UENF, Brazil
 ### August 2, 2021
 
@@ -34,7 +34,356 @@ class: center, middle, inverse, title-slide
 
 
 
-# First slide
+## The problem
+
+&lt;br /&gt;
+
+.center[GWAS can identify SNPs associated with traits, but not the underlying genes.
+
+Hundreds of putative candidate genes. What then?
+]
+
+&lt;img src="figs/drowning.png" width="65%" style="display: block; margin: auto;" /&gt;
+
+---
+
+## *cageminer* to the rescue!
+
+&lt;img src="figs/Fig1.png" width="95%" style="display: block; margin: auto;" /&gt;
+
+---
+
+## Required input data
+
+.panelset.sideways[
+.panel[.panel-name[SNP positions]
+
+A GRanges or GRangesList object.
+
+
+```r
+set.seed(123)
+library(cageminer)
+data(snp_pos)
+snp_pos
+```
+
+```
+## GRanges object with 116 ranges and 0 metadata columns:
+##       seqnames    ranges strand
+##          &lt;Rle&gt; &lt;IRanges&gt;  &lt;Rle&gt;
+##     2    Chr02 149068682      *
+##     3    Chr03   5274098      *
+##     4    Chr05  27703815      *
+##     5    Chr05  27761792      *
+##     6    Chr05  27807397      *
+##   ...      ...       ...    ...
+##   114    Chr12 230514706      *
+##   115    Chr12 230579178      *
+##   116    Chr12 230812962      *
+##   117    Chr12 230887290      *
+##   118    Chr12 231022812      *
+##   -------
+##   seqinfo: 8 sequences from an unspecified genome; no seqlengths
+```
+]
+.panel[.panel-name[Gene coordinates]
+
+A GRanges object.
+
+
+```r
+data(gene_ranges)
+head(gene_ranges)
+```
+
+```
+## GRanges object with 6 ranges and 6 metadata columns:
+##       seqnames        ranges strand |   source     type     score     phase
+##          &lt;Rle&gt;     &lt;IRanges&gt;  &lt;Rle&gt; | &lt;factor&gt; &lt;factor&gt; &lt;numeric&gt; &lt;integer&gt;
+##   [1]    Chr01   63209-63880      - |  PGA1.55     gene        NA      &lt;NA&gt;
+##   [2]    Chr01 112298-112938      - |  PGA1.55     gene        NA      &lt;NA&gt;
+##   [3]    Chr01 117979-118392      + |  PGA1.55     gene        NA      &lt;NA&gt;
+##   [4]    Chr01 119464-119712      + |  PGA1.55     gene        NA      &lt;NA&gt;
+##   [5]    Chr01 119892-120101      + |  PGA1.55     gene        NA      &lt;NA&gt;
+##   [6]    Chr01 132987-134420      - |  PGA1.55     gene        NA      &lt;NA&gt;
+##                ID          Parent
+##       &lt;character&gt; &lt;CharacterList&gt;
+##   [1]  CA01g00010                
+##   [2]  CA01g00020                
+##   [3]  CA01g00030                
+##   [4]  CA01g00040                
+##   [5]  CA01g00050                
+##   [6]  CA01g00060                
+##   -------
+##   seqinfo: 12 sequences from an unspecified genome; no seqlengths
+```
+]
+.panel[.panel-name[Guide genes]
+
+Character vector or a 2-column data frame with genes in column 1 and gene functional class (e.g., pathway, GO) in column 2.
+
+
+```r
+data(guides)
+head(guides)
+```
+
+```
+##         Gene                               Description
+## 1 CA10g07770                      response to stimulus
+## 2 CA10g07770                        response to stress
+## 3 CA10g07770             cellular response to stimulus
+## 4 CA10g07770               cellular response to stress
+## 6 CA10g07770 regulation of cellular response to stress
+## 8 CA10g07770        regulation of response to stimulus
+```
+]
+.panel[.panel-name[Expression data]
+
+SummarizedExperiment object or matrix/data frame with genes in rows and samples in columns.
+
+
+```r
+data(pepper_se)
+pepper_se
+```
+
+```
+## class: SummarizedExperiment 
+## dim: 3892 45 
+## metadata(0):
+## assays(1): ''
+## rownames(3892): CA02g23440 CA02g05510 ... CA03g35110 CA02g12750
+## rowData names(0):
+## colnames(45): PL1 PL2 ... TMV-P0-3D TMV-P0-Up
+## colData names(1): Condition
+```
+]
+
+.panel[.panel-name[Coexpression network]
+
+List object returned by `BioNERO::exp2gcn()`.
+
+
+
+
+```r
+# Infer network
+gcn &lt;- BioNERO::exp2gcn(pepper_se, SFTpower = 12)
+```
+]
+]
+
+---
+
+## Exploratory analysis
+
+&lt;br /&gt;
+🤔 &amp;nbsp; Are SNPs evenly distributed across chromosomes?
+
+.pull-left[
+
+```r
+plot_snp_distribution(snp_pos)
+```
+]
+.pull-right[
+&lt;img src="slides_files/figure-html/unnamed-chunk-9-1.png" style="display: block; margin: auto;" /&gt;
+]
+
+---
+
+## Exploratory analysis
+
+&lt;br /&gt;
+🤔 &amp;nbsp; Are SNPs evenly distributed across chromosomes?
+ (Handling multiple traits)
+
+.pull-left[
+
+```r
+# Simulate multiple traits by resampling
+snp_list &lt;- GenomicRanges::GRangesList(
+  Trait1 = sample(snp_pos, 20),
+  Trait2 = sample(snp_pos, 20),
+  Trait3 = sample(snp_pos, 20),
+  Trait4 = sample(snp_pos, 20)
+)
+
+# Visualize SNP distribution
+plot_snp_distribution(snp_list)
+```
+]
+.pull-right[
+&lt;img src="slides_files/figure-html/unnamed-chunk-10-1.png" style="display: block; margin: auto;" /&gt;
+]
+
+---
+
+## Exploratory analysis
+
+&lt;br /&gt;
+🤔 &amp;nbsp; Are SNPs physically close to each other?
+
+.pull-left[
+
+```r
+data(chr_length)
+plot_snp_circos(chr_length, gene_ranges, 
+                snp_pos)
+```
+]
+.pull-right[
+&lt;img src="slides_files/figure-html/unnamed-chunk-11-1.png" style="display: block; margin: auto;" /&gt;
+]
+
+---
+
+## Exploratory analysis
+
+&lt;br /&gt;
+🤔 &amp;nbsp; Are SNPs physically close to each other? (handling multiple traits)
+
+.pull-left[
+
+```r
+data(chr_length)
+plot_snp_circos(chr_length, gene_ranges, 
+*               snp_list)
+```
+]
+.pull-right[
+&lt;img src="slides_files/figure-html/unnamed-chunk-12-1.png" style="display: block; margin: auto;" /&gt;
+]
+
+---
+
+## Gene mining
+
+.panelset.sideways[
+
+.panel[.panel-name[Step 1]
+
+```r
+candidates1 &lt;- mine_step1(gene_ranges, snp_pos)
+length(candidates1)
+```
+
+```
+## [1] 1265
+```
+]
+.panel[.panel-name[Step 2]
+
+```r
+candidates2 &lt;- mine_step2(pepper_se, gcn = gcn, guides = guides$Gene,
+                          candidates = candidates1$ID)
+str(candidates2)
+```
+
+```
+## List of 2
+##  $ candidates: chr [1:37] "CA10g08490" "CA03g01790" "CA10g12640" "CA12g21230" ...
+##  $ enrichment:'data.frame':	1 obs. of  7 variables:
+##   ..$ TermID: chr "guide"
+##   ..$ genes : num 323
+##   ..$ all   : num 1303
+##   ..$ pval  : num 2.58e-05
+##   ..$ padj  : num 5.15e-05
+##   ..$ GeneID: chr "CA01g00320,CA01g00480,CA01g00740,CA01g01120,CA01g01470,CA01g03330,CA01g03580,CA01g05790,CA01g06190,CA01g07040,C"| __truncated__
+##   ..$ Module: chr "cyan"
+```
+]
+.panel[.panel-name[Step 3]
+
+```r
+candidates3 &lt;- mine_step3(pepper_se, candidates = candidates2$candidates,
+                          sample_group = "PRR_stress")
+```
+
+&lt;img src="slides_files/figure-html/unnamed-chunk-15-1.png" width="30%" style="display: block; margin: auto;" /&gt;
+
+```r
+candidates3
+```
+
+```
+##           gene      trait        cor       pvalue
+## 243 CA12g18400 PRR_stress  0.5963394 1.540534e-05
+## 187 CA10g02780 PRR_stress  0.3201048 3.205995e-02
+## 19  CA02g16620 PRR_stress  0.3113993 3.732128e-02
+## 33  CA02g16900 PRR_stress -0.3204388 3.187100e-02
+## 103 CA03g03310 PRR_stress -0.3983772 6.720204e-03
+```
+]
+.panel[.panel-name[Wrapping up]
+
+`mine_candidates()` is a wrapper that calls all 3 `mine_step*()` functions sequentially.
+
+
+```r
+candidates &lt;- mine_candidates(gene_ranges = gene_ranges, 
+                              marker_ranges = snp_pos, 
+                              exp = pepper_se,
+                              gcn = gcn, guides = guides$Gene,
+                              sample_group = "PRR_stress")
+```
+]
+]
+
+---
+
+## Scoring and ranking candidates
+
+&lt;br /&gt;
+Useful to pick the top *n* genes for validation, for instance.
+
+.font140[
+`$$S_i = r_{pb} \kappa$$`
+] 
+
+.center[
+where:
+
+`\(\kappa\)` = 2 if the gene encodes a transcription factor
+
+`\(\kappa\)` = 2 if the gene is a hub
+
+`\(\kappa\)` = 3 is the gene is a hub + encodes a transcription factor
+
+]
+
+---
+
+## Scoring and ranking candidates
+
+
+```r
+data(tfs)
+data(hubs)
+
+# Score and rank candidates
+scored &lt;- score_genes(candidates3, hubs$Gene, tfs$Gene_ID)
+scored
+```
+
+```
+##           gene      trait        cor       pvalue      score
+## 243 CA12g18400 PRR_stress  0.5963394 1.540534e-05  0.5963394
+## 103 CA03g03310 PRR_stress -0.3983772 6.720204e-03 -0.3983772
+## 33  CA02g16900 PRR_stress -0.3204388 3.187100e-02 -0.3204388
+## 187 CA10g02780 PRR_stress  0.3201048 3.205995e-02  0.3201048
+## 19  CA02g16620 PRR_stress  0.3113993 3.732128e-02  0.3113993
+```
+
+---
+
+## Summary
+
+From 1265 genes, `cageminer` found 5 high-confidence candidates (&gt;99% reduction).
+
+&lt;img src="slides_files/figure-html/unnamed-chunk-18-1.png" width="50%" style="display: block; margin: auto;" /&gt;
 
 ---
 
